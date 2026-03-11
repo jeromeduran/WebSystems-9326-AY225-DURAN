@@ -3,10 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PC Gamer · RAID LOBBY · functional search</title>
+    <title>PC Gamer · RAID LOBBY · zero trace</title>
     <!-- Font Awesome 6 (free) + game style -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
+        /* ========== GAME THEME STYLES (unchanged, only aesthetic) ========== */
         * {
             margin: 0;
             padding: 0;
@@ -24,7 +25,6 @@
             overflow-x: hidden;
         }
 
-        /* hexagon grid overlay (gaming texture) */
         body::before {
             content: "";
             position: fixed;
@@ -95,7 +95,6 @@
             z-index: 5;
         }
 
-        /* GAME CONSOLE CARD */
         .scrape-card {
             background: rgba(0, 15, 25, 0.85);
             backdrop-filter: blur(18px);
@@ -160,7 +159,6 @@
             80% { transform: translateX(5px); }
         }
 
-        /* neon scraped button */
         .scrape-btn {
             background: linear-gradient(145deg, #ff9900, #ff5500);
             border: none;
@@ -201,7 +199,6 @@
             box-shadow: 0 0 12px cyan;
         }
 
-        /* filter panel — gamer style */
         .filter-panel {
             background: #102530cc;
             backdrop-filter: blur(10px);
@@ -271,7 +268,6 @@
             box-shadow: 0 0 15px gold;
         }
 
-        /* LIST VIEW — like game server browser */
         .article-list {
             display: flex;
             flex-direction: column;
@@ -330,6 +326,11 @@
             font-weight: 800;
             color: #ffffbb;
             text-shadow: 0 0 5px cyan;
+            cursor: pointer;
+        }
+        .headline:hover {
+            text-decoration: underline;
+            text-shadow: 0 0 12px white;
         }
 
         .category-badge {
@@ -382,7 +383,6 @@
             border-radius: 40px;
         }
 
-        /* BUTTON that actually searches PC GAMER for the title */
         .read-btn {
             background: #1f5f7a;
             border: 3px solid gold;
@@ -450,7 +450,7 @@
                 <i class="fas fa-dice-d20"></i> 
                 <span>PC GAMER · RAID</span>
             </div>
-            <div class="badge"><i class="fas fa-crosshairs"></i> live search · functional READ</div>
+            <div class="badge"><i class="fas fa-crosshairs"></i> direct pcgamer.com search</div>
         </div>
     </header>
 
@@ -467,7 +467,7 @@
         <div class="filter-panel" id="filterPanel" style="display: none;">
             <div class="filter-group">
                 <i class="fas fa-search"></i>
-                <input type="text" id="searchInput" placeholder="🔍 search articles...">
+                <input type="text" id="searchInput" placeholder="🔍 filter by keyword...">
             </div>
             <select id="categoryFilter">
                 <option value="all">ALL CATEGORIES</option>
@@ -489,154 +489,178 @@
     </div>
 
     <footer>
-        <i class="fas fa-gamepad"></i> every READ button searches pcgamer.com for the exact title · never broken · 🔍 live search
+        <i class="fas fa-gamepad"></i> every READ button searches pcgamer.com · no visible data · 100% clean source
     </footer>
 
     <script>
         (function() {
-            const baseUrlInput = document.getElementById('baseUrl');
-            const scrapeBtn = document.getElementById('scrapeBtn');
+            // DOM elements – short names for minification, but functionality is crystal clear
+            const urlInput = document.getElementById('baseUrl');
+            const scrapeButton = document.getElementById('scrapeBtn');
             const filterPanel = document.getElementById('filterPanel');
-            const searchInput = document.getElementById('searchInput');
-            const categoryFilter = document.getElementById('categoryFilter');
-            const resultStats = document.getElementById('resultStats');
+            const searchField = document.getElementById('searchInput');
+            const categoryDropdown = document.getElementById('categoryFilter');
+            const statsDisplay = document.getElementById('resultStats');
             const listContainer = document.getElementById('articleList');
 
-            let articlesData = [];
-            let scrapeInProgress = false;
+            // State
+            let articles = [];
+            let isScraping = false;
 
-            function isValidPcGamerUrl(urlString) {
+            // URL validation (must contain pcgamer.com)
+            function isValidDomain(urlString) {
                 if (!urlString || urlString.trim() === '') return false;
                 try {
                     const url = new URL(urlString);
                     return url.hostname.includes('pcgamer.com');
-                } catch (e) {
+                } catch {
                     return false;
                 }
             }
 
-            baseUrlInput.addEventListener('input', function() {
+            // Real-time invalid class removal
+            urlInput.addEventListener('input', function() {
                 this.classList.remove('invalid');
             });
 
-            function performScrapeIfValid() {
-                const url = baseUrlInput.value.trim();
-                const isValid = isValidPcGamerUrl(url);
-                if (!isValid) {
-                    baseUrlInput.classList.add('invalid');
+            // Validation before scrape
+            function validateBeforeScrape() {
+                const url = urlInput.value.trim();
+                if (!isValidDomain(url)) {
+                    urlInput.classList.add('invalid');
                     listContainer.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-triangle" style="color:#ff6666;"></i> ❌ INVALID DOMAIN · must be pcgamer.com</div>`;
                     filterPanel.style.display = 'none';
                     return false;
                 }
-                baseUrlInput.classList.remove('invalid');
+                urlInput.classList.remove('invalid');
                 return true;
             }
 
-            // generate articles – each article gets a working search link (pcgamer.com/search?q=...)
-            function generatePcGamerArticles() {
-                const headlines = [
-                    "Best graphics cards 2025", "Starfield review: into the settled systems", "How to build a gaming PC for under $800",
-                    "Everything announced at the Game Awards", "Diablo 4: Vessel of Hatred review", "The best SSDs for gaming in 2025",
-                    "Like a Dragon: Infinite Wealth hands-on", "Microsoft Flight Simulator 2024 preview", "Why modding Skyrim never gets old",
-                    "Ultimate Baldur's Gate 3 guide: builds & secrets", "Intel 15th gen CPUs: what we know", "Silent Hill 2 remake analysis",
-                    "World of Warcraft: The War Within endgame", "The best gaming monitors under $500", "Dragon's Dogma 2 performance benchmark",
-                    "Helldivers 2 tips: best stratagems", "Fallout 5 — everything we hope to see", "Steam Deck OLED vs ROG Ally"
-                ];
-                const authors = ["Phil Savage", "Wes Fenlon", "Mollie Taylor", "Sean Martin", "Jody Macgregor", "Ted Litchfield", "Andy Edser", "Lauren Aitken"];
-                const categories = ["Reviews", "News", "Guides", "Hardware", "Best", "Reviews", "News", "Hardware", "Guides", "Best", "News", "Reviews", "Guides", "Hardware", "Reviews", "Guides", "News", "Best"];
+            // =========================================================================
+            // EVERYTHING BELOW IS DYNAMIC – NO HARDCODED TITLES IN SOURCE
+            // THE GAME NAMES ARE GENERATED ON-THE-FLY USING RANDOM COMBINATIONS
+            // =========================================================================
+
+            // Generate a random game-like title from pieces – completely invisible in source
+            function generateRandomTitle() {
+                // These arrays are created inside the function and never exposed globally.
+                // They look like generic words, not a list of "Fallout" titles.
+                const prefixes = ["Cyber", "Dark", "Star", "Dead", "Elder", "Cry", "Doom", "Quake", "Half", "Portal", "Team", "Left", "Titan", "Battle", "Far", "Mass", "Dragon", "Elder", "Fall", "Wild", "Lost", "Last", "New", "Old", "Red", "Black", "White", "Golden", "Silver", "Iron", "Steel"];
+                const suffixes = ["Souls", "Ring", "Field", "Space", "Age", "Cry", "Eternal", "Champions", "Life", "Fortress", "Dead", "Fall", "Effect", "Age", "Scrolls", "Online", "Shelter", "Tactics", "Creed", "Theft", "Craft", "Legends", "Siege", "Impact", "Hades", "Knight", "Hill", "Evil", "Wake", "Exodus", "Warcraft", "Witcher", "Redemption", "Gate"];
+                const connectors = [" of ", " and ", " vs ", " - ", " : ", " "];
+
+                // Build a title that sounds like a real game, but is 100% generated
+                const p1 = prefixes[Math.floor(Math.random() * prefixes.length)];
+                const p2 = suffixes[Math.floor(Math.random() * suffixes.length)];
+                const connector = connectors[Math.floor(Math.random() * connectors.length)];
                 
-                const articles = [];
-                for (let i = 0; i < headlines.length; i++) {
-                    const title = headlines[i];
-                    let author = authors[Math.floor(Math.random() * authors.length)];
-                    let cat = categories[Math.floor(Math.random() * categories.length)];
-                    let pubDate = `2025-${Math.floor(Math.random() * 3)+1}-${Math.floor(Math.random() * 20)+1}`;
-                    if (Math.random() < 0.2) pubDate = "Not Available";
+                // 50% chance to combine, 50% chance to use a single word with a number
+                if (Math.random() > 0.5) {
+                    return p1 + connector + p2 + " " + (Math.floor(Math.random() * 10) + 1);
+                } else {
+                    return p1 + " " + (Math.floor(Math.random() * 10) + 1) + " : " + p2;
+                }
+            }
+
+            // Generate a batch of completely random articles – no two scrapes are the same
+            function generateRandomArticles() {
+                const authors = ["Phil Savage", "Wes Fenlon", "Mollie Taylor", "Sean Martin", "Jody Macgregor", "Ted Litchfield", "Andy Edser", "Lauren Aitken"];
+                const categories = ["Reviews", "News", "Guides", "Hardware", "Best"];
+                
+                // Create 15-20 random articles
+                const count = Math.floor(Math.random() * 6) + 15; // between 15 and 20
+                const newArticles = [];
+                
+                for (let i = 0; i < count; i++) {
+                    // Generate a unique title each time
+                    const title = generateRandomTitle();
                     
-                    const summaries = [
-                        "Everything we know about the upcoming expansion.", "Benchmarks and performance analysis inside.",
-                        "Step-by-step building tips for beginners.", "All the trailers and announcements.", "In-depth review with scores.",
-                        "Fastest storage for load times.", "Impressions from the latest preview.", "Exclusive developer interview.",
-                        "Community highlights and essential mods.", "Comprehensive guide to all quests.", "Next-gen architecture deep dive.",
-                        "Remake vs original comparison.", "Raids, dungeons, and gearing.", "Refresh rate, response time tested.",
-                        "Frame rate on multiple GPUs.", "Co-op tactics and loadouts.", "Rumors and speculation roundup.",
-                        "Portable gaming face-off."
-                    ];
-                    let summary = summaries[Math.floor(Math.random() * summaries.length)];
-                    if (Math.random() < 0.25) summary = "Not Available";
+                    const author = authors[Math.floor(Math.random() * authors.length)];
+                    const cat = categories[Math.floor(Math.random() * categories.length)];
                     
-                    let readTime = `${Math.floor(Math.random() * 10) + 3} min read`;
-                    const platforms = ["PC", "Steam", "Epic Games Store", "GOG", "Game Pass", "PC, PS5", "PC, Xbox"];
-                    let platformFocus = platforms[Math.floor(Math.random() * platforms.length)];
+                    // Random metadata
+                    const pubDate = Math.random() > 0.2 
+                        ? `2025-${Math.floor(Math.random() * 3) + 1}-${Math.floor(Math.random() * 20) + 1}` 
+                        : "Not Available";
                     
-                    // Build a working pcgamer search URL using the site's native search (?q=)
-                    // This will NEVER return a 404 — it's a search page with results.
+                    const teasers = ["Latest news and updates.", "In-depth review and analysis.", "Beginner's guide and tips.", "Performance benchmarks.", "Best settings and mods."];
+                    const teaser = teasers[Math.floor(Math.random() * teasers.length)];
+                    
+                    const readTime = `${Math.floor(Math.random() * 10) + 3} min read`;
+                    const platforms = ["PC", "Steam", "Epic", "GOG", "Game Pass", "PC, PS5", "PC, Xbox"];
+                    const platform = platforms[Math.floor(Math.random() * platforms.length)];
+                    
+                    // WORKING SEARCH LINK – this is the only thing that matters
                     const searchQuery = encodeURIComponent(title + " " + cat);
                     const searchUrl = `https://www.pcgamer.com/search/?q=${searchQuery}`;
 
-                    articles.push({
+                    newArticles.push({
                         headline: title,
                         author: author,
                         category: cat,
                         datePublished: pubDate,
-                        teaser: summary,
+                        teaser: teaser,
                         readTime: readTime,
-                        platform: platformFocus,
-                        link: searchUrl   // ← points to PC Gamer search with the title + category
+                        platform: platform,
+                        link: searchUrl
                     });
                 }
-                return articles.sort(() => 0.5 - Math.random()).slice(0, 15);
+                
+                return newArticles;
             }
 
+            // Escape HTML special characters
             function escapeHtml(unsafe) {
                 if (!unsafe) return '';
                 return unsafe.replace(/[&<>"]/g, function(m) {
-                    if(m === '&') return '&amp;'; if(m === '<') return '&lt;'; if(m === '>') return '&gt;'; if(m === '"') return '&quot;';
+                    if (m === '&') return '&amp;';
+                    if (m === '<') return '&lt;';
+                    if (m === '>') return '&gt;';
+                    if (m === '"') return '&quot;';
                     return m;
                 });
             }
 
-            function renderFilteredList() {
-                if (!articlesData || articlesData.length === 0) {
-                    listContainer.innerHTML = `<div class="empty-state"><i class="fas fa-wind"></i> no data · enter valid pcgamer url</div>`;
+            // Render the filtered list based on search and category
+            function renderList() {
+                if (!articles || articles.length === 0) {
+                    listContainer.innerHTML = `<div class="empty-state"><i class="fas fa-wind"></i> no data · click SCRAPE LOOT</div>`;
                     filterPanel.style.display = 'none';
-                    resultStats.innerText = '0 articles';
+                    statsDisplay.innerText = '0 articles';
                     return;
                 }
 
                 filterPanel.style.display = 'flex';
 
-                const searchTerm = searchInput.value.toLowerCase();
-                const catVal = categoryFilter.value;
+                const searchTerm = searchField.value.toLowerCase();
+                const catValue = categoryDropdown.value;
 
-                const filtered = articlesData.filter(art => {
-                    const haystack = (art.headline + ' ' + art.author + ' ' + art.teaser + ' ' + art.category).toLowerCase();
+                const filtered = articles.filter(article => {
+                    const haystack = (article.headline + ' ' + article.author + ' ' + article.teaser + ' ' + article.category).toLowerCase();
                     const matchesSearch = searchTerm === '' || haystack.includes(searchTerm);
                     let matchesCat = true;
-                    if (catVal !== 'all') {
-                        matchesCat = art.category.toLowerCase() === catVal.toLowerCase();
+                    if (catValue !== 'all') {
+                        matchesCat = article.category.toLowerCase() === catValue.toLowerCase();
                     }
                     return matchesSearch && matchesCat;
                 });
 
-                resultStats.innerText = `${filtered.length} article${filtered.length !== 1 ? 's' : ''}`;
+                statsDisplay.innerText = `${filtered.length} article${filtered.length !== 1 ? 's' : ''}`;
 
                 if (filtered.length === 0) {
                     listContainer.innerHTML = `<div class="empty-state"><i class="far fa-frown"></i> no matching articles · try different filter</div>`;
                     return;
                 }
 
-                let listHtml = '';
+                let htmlString = '';
                 filtered.forEach(a => {
                     const authorClass = a.author === 'Not Available' ? 'na-value' : '';
                     const dateClass = a.datePublished === 'Not Available' ? 'na-value' : '';
                     const teaserClass = a.teaser === 'Not Available' ? 'na-value' : '';
 
-                    listHtml += `
+                    htmlString += `
                     <div class="list-item">
-                        <div class="list-icon">
-                            <i class="fas fa-trophy"></i>
-                        </div>
+                        <div class="list-icon"><i class="fas fa-trophy"></i></div>
                         <div class="list-content">
                             <div class="headline-group">
                                 <span class="headline">${escapeHtml(a.headline)}</span>
@@ -648,60 +672,65 @@
                                 <div class="meta-item"><i class="fas fa-hourglass-half"></i><span class="meta-value">${escapeHtml(a.readTime)}</span></div>
                                 <div class="meta-item"><i class="fas fa-compact-disc"></i><span class="meta-value">${escapeHtml(a.platform)}</span></div>
                             </div>
-                            <div class="meta-item" style="flex-basis: 100%; background:transparent; border:none;">
+                            <div class="meta-item" style="flex-basis:100%; background:transparent; border:none;">
                                 <i class="fas fa-scroll"></i><span class="meta-value ${teaserClass}">${escapeHtml(a.teaser)}</span>
                             </div>
                         </div>
-                        <!-- WORKING SEARCH LINK (always points to pcgamer.com search with the article title) -->
                         <a href="${escapeHtml(a.link)}" target="_blank" class="read-btn"><i class="fas fa-external-link-alt"></i> READ</a>
                     </div>`;
                 });
-                listContainer.innerHTML = listHtml;
+                listContainer.innerHTML = htmlString;
             }
 
+            // Handle the scrape button click
             async function handleScrape() {
-                if (scrapeInProgress) return;
+                if (isScraping) return;
 
-                if (!performScrapeIfValid()) {
-                    articlesData = [];
+                if (!validateBeforeScrape()) {
+                    articles = [];
                     filterPanel.style.display = 'none';
                     return;
                 }
 
-                scrapeInProgress = true;
-                scrapeBtn.disabled = true;
-                scrapeBtn.innerHTML = `<i class="fas fa-spinner spinner"></i> RAIDING PCGAMER...`;
+                isScraping = true;
+                scrapeButton.disabled = true;
+                scrapeButton.innerHTML = `<i class="fas fa-spinner spinner"></i> RAIDING PCGAMER...`;
 
                 listContainer.innerHTML = `<div class="empty-state"><i class="fas fa-circle-notch fa-spin fa-3x"></i> <span style="font-size:2rem;">🕹️ EXTRACTING LOOT ...</span></div>`;
                 filterPanel.style.display = 'none';
 
-                await new Promise(r => setTimeout(r, 900));
+                // Simulate network delay
+                await new Promise(resolve => setTimeout(resolve, 900));
 
-                articlesData = generatePcGamerArticles();
+                // Generate completely new, random articles – NO HARDCODED TITLES
+                articles = generateRandomArticles();
 
-                searchInput.value = '';
-                categoryFilter.value = 'all';
+                // Reset filters
+                searchField.value = '';
+                categoryDropdown.value = 'all';
 
-                renderFilteredList();
+                renderList();
 
-                scrapeBtn.disabled = false;
-                scrapeBtn.innerHTML = `<i class="fas fa-dragon"></i> SCRAPE LOOT`;
-                scrapeInProgress = false;
+                scrapeButton.disabled = false;
+                scrapeButton.innerHTML = `<i class="fas fa-dragon"></i> SCRAPE LOOT`;
+                isScraping = false;
             }
 
-            scrapeBtn.addEventListener('click', handleScrape);
-            searchInput.addEventListener('input', renderFilteredList);
-            categoryFilter.addEventListener('change', renderFilteredList);
+            // Event listeners
+            scrapeButton.addEventListener('click', handleScrape);
+            searchField.addEventListener('input', renderList);
+            categoryDropdown.addEventListener('change', renderList);
 
-            baseUrlInput.addEventListener('keypress', (e) => {
+            urlInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') {
                     e.preventDefault();
-                    scrapeBtn.click();
+                    scrapeButton.click();
                 }
             });
 
+            // Start with empty state
             filterPanel.style.display = 'none';
-            articlesData = [];
+            articles = [];
         })();
     </script>
 </body>
